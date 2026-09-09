@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { LoaderCircle, ShieldCheck, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export function SetupDialog({ open, initialConfig, onClose, onSave }: SetupDialo
     }
   }
 
-  function handleSubmit(event: FormEvent) {
+  function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     onSave(config);
   }
