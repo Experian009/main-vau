@@ -1,0 +1,8 @@
+{
+  "name": "v380-local-archive",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "terabox-node": "github:seiya-dev/terabox-node#app-3.3.1"
+  }
+}
