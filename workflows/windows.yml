@@ -1,0 +1,46 @@
+name: Windows-RDP-TAILSCALE-RECOMMENDED
+on: workflow_dispatch
+jobs:
+  win:
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout FreeVPS and embedded V380 Event
+        uses: actions/checkout@v4
+
+      - name: Enable RDP
+        shell: pwsh
+        run: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name fDenyTSConnections -Value 0 -Force
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
+          net user runneradmin ${{ secrets.WIN_PASS }}
+          net user runneradmin /active:yes
+
+      - name: Install, register and start V380 Event MVP autonomously
+        shell: pwsh
+        env:
+          V380_CAMERA_ID: ${{ secrets.V380_CAMERA_ID }}
+          V380_USERNAME: ${{ secrets.V380_USERNAME }}
+          V380_PASSWORD: ${{ secrets.V380_PASSWORD }}
+          GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
+          INTERNAL_NOTIFY_TOKEN: ${{ secrets.INTERNAL_NOTIFY_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TERABOX_NDUS: ${{ secrets.TERABOX_NDUS }}
+          WEBRTC_HOST: 127.0.0.1
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          & "$PWD\apps\V380 Event\windows\bootstrap-autonomous.ps1" -Install -Register
+
+      - name: Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Show IP and keep alive
+        shell: pwsh
+        run: |
+          tailscale ip -4
+          tailscale status
+          Write-Host "=== ГОТОВО: RDP на этот 100.x.x.x ==="
+          while($true){ Start-Sleep 300 }
