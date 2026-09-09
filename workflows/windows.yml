@@ -1,0 +1,27 @@
+name: Windows-RDP-TAILSCALE-RECOMMENDED
+on: workflow_dispatch
+jobs:
+  win:
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - name: Enable RDP
+        shell: pwsh
+        run: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name fDenyTSConnections -Value 0 -Force
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
+          net user runneradmin ${{ secrets.WIN_PASS }}
+          net user runneradmin /active:yes
+
+      - name: Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Show IP and keep alive
+        shell: pwsh
+        run: |
+          tailscale ip -4
+          tailscale status
+          Write-Host "=== ГОТОВО: RDP на этот 100.x.x.x ==="
+          while($true){ Start-Sleep 300 }
