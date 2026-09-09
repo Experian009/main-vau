@@ -1,0 +1,68 @@
+services:
+  decoder:
+    build:
+      context: https://github.com/PyanSofyan/V380Decoder.git#0fc25b77d75fbca689dec1f871d3578336a96d21
+    restart: unless-stopped
+    command:
+      - --id
+      - ${V380_CAMERA_ID:?Set V380_CAMERA_ID in .env.windows}
+      - --username
+      - ${V380_USERNAME:-admin}
+      - --password
+      - ${V380_PASSWORD:?Set V380_PASSWORD in .env.windows}
+      - --source
+      - cloud
+      - --output
+      - rtsp
+      - --enable-api
+      - --rtsp-port
+      - "8554"
+      - --http-port
+      - "8080"
+    expose:
+      - "8080"
+      - "8554"
+
+  mediamtx:
+    image: bluenviron/mediamtx:1
+    restart: unless-stopped
+    depends_on:
+      - decoder
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: ${WEBRTC_HOST:-127.0.0.1}
+    volumes:
+      - ./gateway/mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      - "8189:8189/udp"
+    expose:
+      - "8889"
+
+  gateway:
+    build: ./gateway
+    restart: unless-stopped
+    depends_on:
+      - decoder
+      - mediamtx
+    environment:
+      PORT: "8787"
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in .env.windows}
+      ALLOWED_ORIGIN: http://localhost:3000
+      DECODER_ORIGIN: http://decoder:8080
+      MEDIA_ORIGIN: http://mediamtx:8889
+    ports:
+      - "8787:8787"
+
+  web:
+    image: oven/bun:1
+    working_dir: /app
+    command: sh -c "bun install --frozen-lockfile && bun run dev --host 0.0.0.0"
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./:/app
+      - v380_node_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+
+volumes:
+  v380_node_modules:

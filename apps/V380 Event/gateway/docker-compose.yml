@@ -1,0 +1,53 @@
+services:
+  decoder:
+    build:
+      context: https://github.com/PyanSofyan/V380Decoder.git#0fc25b77d75fbca689dec1f871d3578336a96d21
+    restart: unless-stopped
+    command:
+      - --id
+      - ${V380_CAMERA_ID:?Set V380_CAMERA_ID in .env}
+      - --username
+      - ${V380_USERNAME:-admin}
+      - --password
+      - ${V380_PASSWORD:?Set V380_PASSWORD in .env}
+      - --source
+      - cloud
+      - --output
+      - rtsp
+      - --enable-api
+      - --rtsp-port
+      - "8554"
+      - --http-port
+      - "8080"
+    expose:
+      - "8080"
+      - "8554"
+
+  mediamtx:
+    image: bluenviron/mediamtx:1
+    restart: unless-stopped
+    depends_on:
+      - decoder
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: ${PUBLIC_HOST:?Set PUBLIC_HOST to the VPS IP or DNS name}
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      - "8189:8189/udp"
+    expose:
+      - "8889"
+
+  gateway:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - decoder
+      - mediamtx
+    environment:
+      PORT: "8787"
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN:?Set GATEWAY_TOKEN in .env}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-*}
+      DECODER_ORIGIN: http://decoder:8080
+      MEDIA_ORIGIN: http://mediamtx:8889
+    ports:
+      - "8787:8787"
