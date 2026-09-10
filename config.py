@@ -21,7 +21,19 @@ def load_config():
         "POSTBUFFER_SECONDS": int(os.getenv("POSTBUFFER_SECONDS", "20")),
         "COOLDOWN_SECONDS": int(os.getenv("COOLDOWN_SECONDS", "30")),
         "EVENT_RECORD_FPS": int(os.getenv("EVENT_RECORD_FPS", "10")),
-        "EVENTS_DIR": os.getenv("EVENTS_DIR", "local-data/events")
+        "EVENTS_DIR": os.getenv("EVENTS_DIR", "local-data/events"),
+
+        # Telegram Notifier configuration
+        "TELEGRAM_BOT_TOKEN": os.getenv("TELEGRAM_BOT_TOKEN", ""),
+        "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID", ""),
+        "TELEGRAM_HTTPS_PROXY": os.getenv("TELEGRAM_HTTPS_PROXY", ""),
+        "TELEGRAM_ENABLED": os.getenv("TELEGRAM_ENABLED", "true").lower() == "true",
+
+        # Continuous Recording configuration
+        "FFMPEG_BIN": os.getenv("FFMPEG_BIN", "ffmpeg"),
+        "CONTINUOUS_DIR": os.getenv("CONTINUOUS_DIR", "local-data/continuous"),
+        "CONTINUOUS_SEGMENT_SECONDS": int(os.getenv("CONTINUOUS_SEGMENT_SECONDS", "1800")),
+        "CONTINUOUS_ENABLED": os.getenv("CONTINUOUS_ENABLED", "true").lower() == "true"
     }
 
 config = load_config()

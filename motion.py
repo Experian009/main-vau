@@ -20,6 +20,9 @@ class MotionDetector:
 
         os.makedirs(self.events_dir, exist_ok=True)
 
+        self.enabled = config.get("MOTION_ENABLED", True)
+        self.telegram_notifier = None # Will be set via setter
+
         # Detector state
         self.prev_gray = None
         self.changed_count = 0
@@ -27,6 +30,7 @@ class MotionDetector:
         self.last_event_time = 0
         self.record_end_time = 0
         self.video_writer = None
+        self.current_filename = None
 
         # We estimate buffer size based on target recording FPS
         self.prebuffer = deque(maxlen=self.prebuffer_sec * self.fps)
@@ -36,6 +40,15 @@ class MotionDetector:
         self.frame_interval = 1.0 / self.fps
 
         self.lock = threading.Lock()
+
+    def set_enabled(self, enabled):
+        with self.lock:
+            self.enabled = enabled
+            if not enabled and self.is_recording:
+                self._stop_recording()
+
+    def set_notifier(self, notifier):
+        self.telegram_notifier = notifier
 
     def process_frame(self, frame):
         now = time.time()
@@ -47,8 +60,11 @@ class MotionDetector:
         self.last_process_time = now
 
         with self.lock:
-            # 1. Maintain ring buffer
+            # Always maintain ring buffer if enabled or not (or clear it if disabled, but safer to maintain)
             self.prebuffer.append(frame.copy())
+
+            if not self.enabled:
+                return
 
             # 2. Check if currently recording
             if self.is_recording:
@@ -101,19 +117,19 @@ class MotionDetector:
         self.record_end_time = current_time + self.postbuffer_sec
 
         event_id = int(current_time)
-        filename = os.path.join(self.events_dir, f"event-full-{event_id}.mp4")
+        self.current_filename = os.path.join(self.events_dir, f"event-full-{event_id}.mp4")
 
         height, width = frame_shape[:2]
 
         # Create VideoWriter. H264 via 'avc1' or standard 'mp4v'
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        self.video_writer = cv2.VideoWriter(filename, fourcc, self.fps, (width, height))
+        self.video_writer = cv2.VideoWriter(self.current_filename, fourcc, self.fps, (width, height))
 
         # Write prebuffer first
         for buf_frame in self.prebuffer:
             self.video_writer.write(buf_frame)
 
-        print(f"Motion Detected! Started recording event: {filename}")
+        print(f"Motion Detected! Started recording event: {self.current_filename}")
         if self.update_ui_callback:
             self.update_ui_callback("Status: Motion Detected! Recording...")
 
@@ -124,6 +140,11 @@ class MotionDetector:
 
         self.is_recording = False
         print("Finished recording event.")
+
+        # Queue the finished video to Telegram
+        if self.telegram_notifier and self.current_filename:
+            self.telegram_notifier.enqueue_video(self.current_filename)
+
         if self.update_ui_callback:
             self.update_ui_callback("Status: Playing (Cooldown)")
 

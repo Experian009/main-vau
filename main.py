@@ -4,6 +4,8 @@ from decoder import DecoderManager
 from gui import AppGUI
 from camera import Camera
 from motion import MotionDetector
+from notifier import TelegramNotifier
+from continuous import ContinuousRecorder
 import os
 import sys
 
@@ -23,9 +25,24 @@ def main():
     root = tk.Tk()
     app = AppGUI(root, camera)
 
-    # Initialize Motion Detector and subscribe it to the camera feed
+    # Initialize components
+    telegram_notifier = TelegramNotifier(config)
+    continuous_recorder = ContinuousRecorder(config)
     motion_detector = MotionDetector(config, update_ui_callback=app.update_status)
+
+    # Link modules
+    motion_detector.set_notifier(telegram_notifier)
     camera.subscribe(motion_detector.process_frame)
+
+    # Link GUI controls to module states
+    app.set_settings_callbacks(
+        motion_cb=motion_detector.set_enabled,
+        telegram_cb=telegram_notifier.set_enabled,
+        continuous_cb=continuous_recorder.set_enabled
+    )
+
+    # Start background threads for new modules
+    telegram_notifier.start()
 
     try:
         root.mainloop()
@@ -35,6 +52,8 @@ def main():
         app.running = False
         camera.stop()
         motion_detector.stop()
+        continuous_recorder.stop()
+        telegram_notifier.stop()
         decoder.stop()
         print("Application closed.")
 
