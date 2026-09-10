@@ -21,6 +21,8 @@ class AppGUI:
         self.motion_var = tk.BooleanVar(value=True)
         self.telegram_var = tk.BooleanVar(value=True)
         self.continuous_var = tk.BooleanVar(value=True)
+        self.terabox_events_var = tk.BooleanVar(value=True)
+        self.terabox_cont_var = tk.BooleanVar(value=True)
 
         self.motion_check = ttk.Checkbutton(self.settings_frame, text="Motion Detection", variable=self.motion_var, command=self.on_settings_change)
         self.motion_check.pack(side=tk.LEFT, padx=10, pady=5)
@@ -30,6 +32,12 @@ class AppGUI:
 
         self.continuous_check = ttk.Checkbutton(self.settings_frame, text="Continuous Recording", variable=self.continuous_var, command=self.on_settings_change)
         self.continuous_check.pack(side=tk.LEFT, padx=10, pady=5)
+
+        self.tb_events_check = ttk.Checkbutton(self.settings_frame, text="TeraBox Events", variable=self.terabox_events_var, command=self.on_settings_change)
+        self.tb_events_check.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.tb_cont_check = ttk.Checkbutton(self.settings_frame, text="TeraBox Cont.", variable=self.terabox_cont_var, command=self.on_settings_change)
+        self.tb_cont_check.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.status_label = ttk.Label(self.root, text="Status: Connecting...", anchor=tk.W)
         self.status_label.pack(fill=tk.X, side=tk.BOTTOM, padx=10, pady=5)
@@ -65,10 +73,12 @@ class AppGUI:
         # Schedule the next check (roughly 30 fps -> ~33 ms)
         self.root.after(33, self.update_video_loop)
 
-    def set_settings_callbacks(self, motion_cb, telegram_cb, continuous_cb):
+    def set_settings_callbacks(self, motion_cb, telegram_cb, continuous_cb, tb_events_cb, tb_cont_cb):
         self.callbacks['motion'] = motion_cb
         self.callbacks['telegram'] = telegram_cb
         self.callbacks['continuous'] = continuous_cb
+        self.callbacks['tb_events'] = tb_events_cb
+        self.callbacks['tb_cont'] = tb_cont_cb
 
         # Initialize initial state from defaults
         self.on_settings_change()
@@ -80,6 +90,10 @@ class AppGUI:
             self.callbacks['telegram'](self.telegram_var.get())
         if 'continuous' in self.callbacks:
             self.callbacks['continuous'](self.continuous_var.get())
+        if 'tb_events' in self.callbacks:
+            self.callbacks['tb_events'](self.terabox_events_var.get())
+        if 'tb_cont' in self.callbacks:
+            self.callbacks['tb_cont'](self.terabox_cont_var.get())
 
     def update_status(self, text):
         # Safe to call from other threads (via root.after) if needed,

@@ -33,7 +33,15 @@ def load_config():
         "FFMPEG_BIN": os.getenv("FFMPEG_BIN", "ffmpeg"),
         "CONTINUOUS_DIR": os.getenv("CONTINUOUS_DIR", "local-data/continuous"),
         "CONTINUOUS_SEGMENT_SECONDS": int(os.getenv("CONTINUOUS_SEGMENT_SECONDS", "1800")),
-        "CONTINUOUS_ENABLED": os.getenv("CONTINUOUS_ENABLED", "true").lower() == "true"
+        "CONTINUOUS_ENABLED": os.getenv("CONTINUOUS_ENABLED", "true").lower() == "true",
+
+        # TeraBox Archive configuration
+        "TERABOX_NDUS": os.getenv("TERABOX_NDUS", ""),
+        "TERABOX_EVENTS_DIR": os.getenv("TERABOX_EVENTS_DIR", "/V380/events"),
+        "TERABOX_CONTINUOUS_DIR": os.getenv("TERABOX_CONTINUOUS_DIR", "/V380/archive"),
+        "TERABOX_EVENTS_ENABLED": os.getenv("TERABOX_EVENTS_ENABLED", "true").lower() == "true",
+        "TERABOX_CONTINUOUS_ENABLED": os.getenv("TERABOX_CONTINUOUS_ENABLED", "true").lower() == "true",
+        "ARCHIVE_INTERVAL_SECONDS": int(os.getenv("ARCHIVE_INTERVAL_SECONDS", "30"))
     }
 
 config = load_config()

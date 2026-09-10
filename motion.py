@@ -22,6 +22,7 @@ class MotionDetector:
 
         self.enabled = config.get("MOTION_ENABLED", True)
         self.telegram_notifier = None # Will be set via setter
+        self.archive_worker = None
 
         # Detector state
         self.prev_gray = None
@@ -50,6 +51,9 @@ class MotionDetector:
     def set_notifier(self, notifier):
         self.telegram_notifier = notifier
 
+    def set_archiver(self, archiver):
+        self.archive_worker = archiver
+
     def process_frame(self, frame):
         now = time.time()
 
@@ -68,8 +72,11 @@ class MotionDetector:
 
             # 2. Check if currently recording
             if self.is_recording:
-                if self.video_writer:
-                    self.video_writer.write(frame)
+                if self.video_writer and hasattr(self, 'ffmpeg_proc') and self.ffmpeg_proc:
+                    try:
+                        self.ffmpeg_proc.stdin.write(frame.tobytes())
+                    except Exception:
+                        pass
 
                 if now >= self.record_end_time:
                     self._stop_recording()
@@ -121,21 +128,53 @@ class MotionDetector:
 
         height, width = frame_shape[:2]
 
-        # Create VideoWriter. H264 via 'avc1' or standard 'mp4v'
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        self.video_writer = cv2.VideoWriter(self.current_filename, fourcc, self.fps, (width, height))
+        # Use a background thread to queue frames and let ffmpeg encode them
+        # This prevents blocking the camera read thread and produces H.264
+        import subprocess
+        import sys
 
-        # Write prebuffer first
-        for buf_frame in self.prebuffer:
-            self.video_writer.write(buf_frame)
+        ffmpeg_bin = self.config.get("FFMPEG_BIN", "ffmpeg")
+
+        try:
+            self.ffmpeg_proc = subprocess.Popen([
+                ffmpeg_bin,
+                "-y",
+                "-f", "rawvideo",
+                "-vcodec", "rawvideo",
+                "-s", f"{width}x{height}",
+                "-pix_fmt", "bgr24",
+                "-r", str(self.fps),
+                "-i", "-",
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-pix_fmt", "yuv420p",
+                self.current_filename
+            ], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+               creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
+
+            self.video_writer = True # Use as a flag indicating active recording
+
+            # Write prebuffer first
+            for buf_frame in self.prebuffer:
+                self.ffmpeg_proc.stdin.write(buf_frame.tobytes())
+
+        except Exception as e:
+            print(f"Failed to start ffmpeg for motion event: {e}")
+            self.is_recording = False
+            return
 
         print(f"Motion Detected! Started recording event: {self.current_filename}")
         if self.update_ui_callback:
             self.update_ui_callback("Status: Motion Detected! Recording...")
 
     def _stop_recording(self):
-        if self.video_writer:
-            self.video_writer.release()
+        if self.video_writer and hasattr(self, 'ffmpeg_proc') and self.ffmpeg_proc:
+            try:
+                self.ffmpeg_proc.stdin.close()
+                self.ffmpeg_proc.wait(timeout=5)
+            except Exception:
+                self.ffmpeg_proc.kill()
+            self.ffmpeg_proc = None
             self.video_writer = None
 
         self.is_recording = False
@@ -144,6 +183,10 @@ class MotionDetector:
         # Queue the finished video to Telegram
         if self.telegram_notifier and self.current_filename:
             self.telegram_notifier.enqueue_video(self.current_filename)
+
+        # Queue to TeraBox
+        if self.archive_worker and self.current_filename:
+            self.archive_worker.enqueue_event(self.current_filename)
 
         if self.update_ui_callback:
             self.update_ui_callback("Status: Playing (Cooldown)")

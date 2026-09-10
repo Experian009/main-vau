@@ -29,8 +29,9 @@ class DecoderManager:
             "--id", camera_id,
             "--username", username,
             "--password", password,
+            "--source", "cloud",
             "--output", "rtsp",
-            "--port", rtsp_port
+            "--rtsp-port", rtsp_port
         ]
 
         try:

@@ -6,6 +6,7 @@ from camera import Camera
 from motion import MotionDetector
 from notifier import TelegramNotifier
 from continuous import ContinuousRecorder
+from archive import TeraBoxArchiver
 import os
 import sys
 
@@ -28,21 +29,26 @@ def main():
     # Initialize components
     telegram_notifier = TelegramNotifier(config)
     continuous_recorder = ContinuousRecorder(config)
+    terabox_archiver = TeraBoxArchiver(config)
     motion_detector = MotionDetector(config, update_ui_callback=app.update_status)
 
     # Link modules
     motion_detector.set_notifier(telegram_notifier)
+    motion_detector.set_archiver(terabox_archiver)
     camera.subscribe(motion_detector.process_frame)
 
     # Link GUI controls to module states
     app.set_settings_callbacks(
         motion_cb=motion_detector.set_enabled,
         telegram_cb=telegram_notifier.set_enabled,
-        continuous_cb=continuous_recorder.set_enabled
+        continuous_cb=continuous_recorder.set_enabled,
+        tb_events_cb=terabox_archiver.set_events_enabled,
+        tb_cont_cb=terabox_archiver.set_continuous_enabled
     )
 
     # Start background threads for new modules
     telegram_notifier.start()
+    terabox_archiver.start()
 
     try:
         root.mainloop()
@@ -54,6 +60,7 @@ def main():
         motion_detector.stop()
         continuous_recorder.stop()
         telegram_notifier.stop()
+        terabox_archiver.stop()
         decoder.stop()
         print("Application closed.")
 
