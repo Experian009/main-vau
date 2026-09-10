@@ -56,3 +56,5 @@ local-services/archive/.upload-staging/
 local-data/continuous/
 local-services/archive/.continuous-staging/
 local-data/*-settings.json
+__pycache__/
+*.pyc
