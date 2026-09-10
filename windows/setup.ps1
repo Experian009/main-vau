@@ -10,9 +10,6 @@ $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitect
 switch ($architecture) {
   "X64" {
     $decoderPattern = "(win|windows)[-_]x64.*\.zip$"
-    $mediaPattern = "windows_amd64\.zip$"
-    # Baseline avoids AVX2 requirements on older x64 processors.
-    $bunPattern = "bun-windows-x64-baseline\.zip$"
   }
   "Arm64" {
     throw "Текущий V380Decoder не публикует нативный Windows ARM64-релиз. Требуется Windows x64."
@@ -50,17 +47,11 @@ function Install-ZipAsset([object]$asset, [string]$destination, [string]$executa
 }
 
 $decoderAsset = Get-LatestAsset "PyanSofyan/V380Decoder" $decoderPattern
-$mediaAsset = Get-LatestAsset "bluenviron/mediamtx" $mediaPattern
-$bunAsset = Get-LatestAsset "oven-sh/bun" $bunPattern
-
 Install-ZipAsset $decoderAsset (Join-Path $RuntimeRoot "decoder") "V380Decoder.exe"
-Install-ZipAsset $mediaAsset (Join-Path $RuntimeRoot "mediamtx") "mediamtx.exe"
-Install-ZipAsset $bunAsset (Join-Path $RuntimeRoot "bun") "bun.exe"
 
-$bun = Join-Path $RuntimeRoot "bun\bun.exe"
-Write-Host "Устанавливаем зависимости веб-интерфейса…" -ForegroundColor Cyan
-& $bun install --frozen-lockfile
-if ($LASTEXITCODE -ne 0) { throw "Bun install завершился с ошибкой $LASTEXITCODE" }
+Write-Host "Устанавливаем зависимости Python…" -ForegroundColor Cyan
+python -m pip install -r requirements.txt
+if ($LASTEXITCODE -ne 0) { throw "Pip install завершился с ошибкой $LASTEXITCODE" }
 
 Write-Host ""
 Write-Host "Нативные компоненты Windows установлены в .runtime\windows." -ForegroundColor Green
