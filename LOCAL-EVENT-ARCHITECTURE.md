@@ -1,16 +1,21 @@
 # Локальная архитектура V380 Event MVP
 
-```text
-V380 Cloud
-   │ outbound cloud relay
-   ▼
-[ V380Decoder.exe ] -- RTSP 127.0.0.1:8554/live --> [ MediaMTX ] -- WHEP --> [ gateway ] --> local web UI
-        │                                      │                      │
-        └──────────────────────────────► [ motion ] ─────────────────┘
-                                                │
-                                                ├── event-telegram.mp4 ─► [ notifier ] ─► Telegram
-                                                │
-                                                └── event-full.mp4 ─────► [ archive ] ──► TeraBox /V380/events
+```mermaid
+graph TD
+    Cloud["V380 Cloud"] -- "outbound cloud relay" --> Decoder["V380Decoder.exe"]
+    Decoder -- "RTSP 127.0.0.1:8554/live" --> MediaMTX["MediaMTX"]
+    Decoder -- "RTSP" --> Motion["Motion Worker<br/>127.0.0.1:8091"]
+    MediaMTX -- "WHEP" --> Gateway["Gateway<br/>127.0.0.1:8787"]
+    Gateway --> WebUI["Local Web UI<br/>localhost:3000"]
+    Motion --> Gateway
+    Motion -- "event-telegram.mp4" --> Notifier["Notifier<br/>127.0.0.1:8090"]
+    Notifier -- "Send Video" --> Telegram["Telegram"]
+    Motion -- "event-full.mp4" --> Archive["Archive Worker<br/>127.0.0.1:8092"]
+    Archive -- "Upload" --> TeraBox["TeraBox<br/>/V380/events"]
+
+    Decoder -- "RTSP" --> Continuous["Continuous Recorder<br/>127.0.0.1:8093"]
+    Continuous -- "30-min MP4" --> ContArchive["Continuous Archive<br/>127.0.0.1:8094"]
+    ContArchive -- "Upload" --> ContTeraBox["TeraBox<br/>/V380/archive"]
 ```
 
 The implementation is intentionally **event-only** and supports one camera. The Windows computer is the local service host; it must remain online and awake while live view, motion detection and delivery are required.
@@ -50,10 +55,11 @@ This MVP deliberately excludes continuous 24/7 recording, 30-minute archive segm
 
 Continuous recording добавляется отдельной веткой и не изменяет event pipeline:
 
-```text
-[ V380Decoder ] -- RTSP --> [ continuous recorder ] -- 30-min MP4 --> [ continuous archive ] --> TeraBox /V380/archive
-                                      │                                      │
-                                      └── 127.0.0.1:8093                    └── 127.0.0.1:8094
+```mermaid
+graph LR
+    Decoder["V380Decoder"] -- "RTSP" --> Recorder["Continuous Recorder<br/>127.0.0.1:8093"]
+    Recorder -- "30-min MP4" --> Archive["Continuous Archive<br/>127.0.0.1:8094"]
+    Archive -- "Upload" --> TeraBox["TeraBox<br/>/V380/archive"]
 ```
 
 Recorder запускает отдельный FFmpeg-процесс на каждый сегмент с `-t 1800` и `-c copy`. Сначала создаётся файл с суффиксом `.part.mp4`; после штатного завершения FFmpeg он атомарно переименовывается в `.mp4` и становится доступным архивному worker. При разрыве RTSP worker ждёт пять секунд и начинает новый сегмент, не вмешиваясь в motion worker.
