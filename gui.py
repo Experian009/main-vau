@@ -5,11 +5,11 @@ from PIL import Image, ImageTk
 import threading
 
 class AppGUI:
-    def __init__(self, root, rtsp_url):
+    def __init__(self, root, camera):
         self.root = root
         self.root.title("V380 Event MVP (Python Edition)")
         self.root.geometry("800x600")
-        self.rtsp_url = rtsp_url
+        self.camera = camera
 
         self.video_label = ttk.Label(self.root)
         self.video_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -17,47 +17,42 @@ class AppGUI:
         self.status_label = ttk.Label(self.root, text="Status: Connecting...", anchor=tk.W)
         self.status_label.pack(fill=tk.X, side=tk.BOTTOM, padx=10, pady=5)
 
-        self.capture = None
         self.running = True
-        self.thread = threading.Thread(target=self.video_loop)
-        self.thread.start()
 
+        # We will use Tkinter's 'after' loop instead of a tight while loop thread
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.update_video_loop()
 
-    def video_loop(self):
-        self.capture = cv2.VideoCapture(self.rtsp_url)
+    def update_video_loop(self):
+        if not self.running:
+            return
 
-        while self.running:
-            ret, frame = self.capture.read()
-            if ret:
-                # Convert BGR to RGB
-                cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                # Resize if necessary to fit the window (basic resize for prototype)
-                img = Image.fromarray(cv2image)
-                # Scale down for standard view
-                img = img.resize((640, 360), Image.Resampling.LANCZOS)
+        frame = self.camera.get_latest_frame()
+        if frame is not None:
+            # Convert BGR to RGB
+            cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(cv2image)
+            # Scale down for standard view
+            img = img.resize((640, 360), Image.Resampling.LANCZOS)
 
-                # Update the label image from the main thread (pass Image object, not PhotoImage)
-                self.video_label.after(0, self.update_image, img)
-                self.status_label.after(0, self.update_status, "Status: Playing")
-            else:
-                self.status_label.after(0, self.update_status, "Status: Reconnecting...")
-                import time
-                time.sleep(1) # Prevent CPU pegging
-                self.capture.release()
-                self.capture = cv2.VideoCapture(self.rtsp_url)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.video_label.imgtk = imgtk
+            self.video_label.configure(image=imgtk)
 
-        if self.capture:
-            self.capture.release()
+            # Note: We don't overwrite status here if motion detector is modifying it.
+            # But we can clear a 'Connecting' state.
+            if self.status_label.cget("text") == "Status: Connecting...":
+                self.update_status("Status: Playing")
 
-    def update_image(self, img):
-        # Create PhotoImage on the main thread
-        imgtk = ImageTk.PhotoImage(image=img)
-        self.video_label.imgtk = imgtk
-        self.video_label.configure(image=imgtk)
+        # Schedule the next check (roughly 30 fps -> ~33 ms)
+        self.root.after(33, self.update_video_loop)
 
     def update_status(self, text):
-        self.status_label.configure(text=text)
+        # Safe to call from other threads (via root.after) if needed,
+        # or direct if on main thread. We'll ensure it's thread-safe.
+        def _set_text():
+            self.status_label.configure(text=text)
+        self.root.after(0, _set_text)
 
     def on_close(self):
         self.running = False
